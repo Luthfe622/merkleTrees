@@ -106,15 +106,7 @@ def prove_merkle(merkle_tree, random_indx):
 
 
 def sign_challenge(challenge):
-    """
-        Takes a challenge (string)
-        Returns address, sig
-        where address is an ethereum address and sig is a signature (in hex)
-        This method is to allow the auto-grader to verify that you have
-        claimed a prime
-    """
     acct = get_account()
-
     addr = acct.address
     eth_encoded_msg = eth_account.messages.encode_defunct(text=challenge)
     eth_sig_obj = acct.sign_message(eth_encoded_msg)
