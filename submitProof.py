@@ -25,7 +25,7 @@ def merkle_assignment():
     tree = build_merkle(leaves)
 
     # Select a random leaf and create a proof for that leaf
-    random_leaf_index = 0 #TODO generate a random index from primes to claim (0 is already claimed)
+    random_leaf_index = random.randint(1, num_of_primes-1)  # Generate a random index from primes to claim
     proof = prove_merkle(tree, random_leaf_index)
 
     # This is the same way the grader generates a challenge for sign_challenge()
@@ -37,7 +37,8 @@ def merkle_assignment():
         tx_hash = '0x'
         # TODO, when you are ready to attempt to claim a prime (and pay gas fees),
         #  complete this method and run your code with the following line un-commented
-        # tx_hash = send_signed_msg(proof, leaves[random_leaf_index])
+        tx_hash = send_signed_msg(proof, leaves[random_leaf_index])
+        print(f"Transaction hash: {tx_hash}")
 
 
 def generate_primes(num_primes):
@@ -46,9 +47,16 @@ def generate_primes(num_primes):
         returns list (with length n) of primes (as ints) in ascending order
     """
     primes_list = []
-
-    #TODO YOUR CODE HERE
-
+    candidate = 2
+    while len(primes_list) < num_primes:
+        is_prime = True
+        for prime in primes_list:
+            if candidate % prime == 0:
+                is_prime = False
+                break
+        if is_prime:
+            primes_list.append(candidate)
+        candidate += 1
     return primes_list
 
 
@@ -57,10 +65,7 @@ def convert_leaves(primes_list):
         Converts the leaves (primes_list) to bytes32 format
         returns list of primes where list entries are bytes32 encodings of primes_list entries
     """
-
-    # TODO YOUR CODE HERE
-
-    return []
+    return [Web3.toBytes(prime).rjust(32, b'\0') for prime in primes_list]
 
 
 def build_merkle(leaves):
@@ -70,10 +75,16 @@ def build_merkle(leaves):
         tree[1] is the parent hashes, and so on until tree[n] which is the root hash
         the root hash produced by the "hash_pair" helper function
     """
-
-    #TODO YOUR CODE HERE
-    tree = []
-
+    tree = [leaves]
+    current_level = leaves
+    while len(current_level) > 1:
+        next_level = []
+        for i in range(0, len(current_level), 2):
+            a = current_level[i]
+            b = current_level[i + 1] if i + 1 < len(current_level) else a
+            next_level.append(hash_pair(a, b))
+        tree.append(next_level)
+        current_level = next_level
     return tree
 
 
@@ -84,10 +95,14 @@ def prove_merkle(merkle_tree, random_indx):
         parent hash values, up to index -1 which is the list of the root hash.
         returns a proof of inclusion as list of values
     """
-    merkle_proof = []
-    # TODO YOUR CODE HERE
-
-    return merkle_proof
+    proof = []
+    index = random_indx
+    for level in merkle_tree[:-1]:
+        sibling_index = index ^ 1
+        if sibling_index < len(level):
+            proof.append(level[sibling_index])
+        index //= 2
+    return proof
 
 
 def sign_challenge(challenge):
@@ -101,10 +116,8 @@ def sign_challenge(challenge):
     acct = get_account()
 
     addr = acct.address
-    eth_sk = acct.key
-
-    # TODO YOUR CODE HERE
-    eth_sig_obj = 'placeholder'
+    eth_encoded_msg = eth_account.messages.encode_defunct(text=challenge)
+    eth_sig_obj = acct.sign_message(eth_encoded_msg)
 
     return addr, eth_sig_obj.signature.hex()
 
@@ -120,11 +133,18 @@ def send_signed_msg(proof, random_leaf):
     acct = get_account()
     address, abi = get_contract_info(chain)
     w3 = connect_to(chain)
-
-    # TODO YOUR CODE HERE
-    tx_hash = 'placeholder'
-
-    return tx_hash
+    contract = w3.eth.contract(address=address, abi=abi)
+    nonce = w3.eth.getTransactionCount(acct.address)
+    gas_price = w3.eth.gas_price
+    tx = contract.functions.submit(proof, random_leaf).buildTransaction({
+        'chainId': w3.eth.chain_id,
+        'gas': 3000000,
+        'gasPrice': gas_price,
+        'nonce': nonce,
+    })
+    signed_tx = acct.sign_transaction(tx)
+    tx_hash = w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+    return tx_hash.hex()
 
 
 # Helper functions that do not need to be modified
@@ -133,7 +153,7 @@ def connect_to(chain):
         Takes a chain ('avax' or 'bsc') and returns a web3 instance
         connected to that chain.
     """
-    if chain not in ['avax','bsc']:
+    if chain not in ['avax', 'bsc']:
         print(f"{chain} is not a valid option for 'connect_to()'")
         return None
     if chain == 'avax':
@@ -155,7 +175,7 @@ def get_account():
     cur_dir = Path(__file__).parent.absolute()
     with open(cur_dir.joinpath('sk.txt'), 'r') as f:
         sk = f.readline().rstrip()
-    if sk[0:2] == "0x":
+    if sk[:2] == "0x":
         sk = sk[2:]
     return eth_account.Account.from_key(sk)
 
@@ -207,3 +227,4 @@ def hash_pair(a, b):
 
 if __name__ == "__main__":
     merkle_assignment()
+
