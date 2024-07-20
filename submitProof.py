@@ -128,7 +128,7 @@ def send_signed_msg(proof, random_leaf):
     contract = w3.eth.contract(address=address, abi=abi)
     nonce = w3.eth.get_transaction_count(acct.address)
     gas_price = w3.eth.gas_price
-    tx = contract.functions.submit(proof, random_leaf).buildTransaction({
+    tx = contract.functions.submit(proof, random_leaf).build_transaction({
         'chainId': w3.eth.chain_id,
         'gas': 3000000,
         'gasPrice': gas_price,
